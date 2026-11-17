@@ -25,7 +25,22 @@ READ_FIELDS = ["lte_band_lock", "nr5g_band_lock", "net_select", "network_type",
 
 
 def read(r):
-    return r.get(READ_FIELDS)
+    """Read the band fields, making sure we were still signed in when the router answered.
+
+    The router allows one admin session at a time. If another client (the Android app,
+    or the web page in a browser) signs in, our session ends and protected fields come
+    back empty. Sign in again a few times, then give up with an explanation.
+    """
+    for _ in range(3):
+        d = r.get(READ_FIELDS + ["loginfo"])
+        if d.get("loginfo") == "ok":
+            d.pop("loginfo", None)
+            return d
+        r.login()
+        time.sleep(1)
+    sys.exit("\nThe router keeps signing this script out. Another device is signed in to the router:\n"
+             "fully close the MC888 Control app on your phone (swipe it away) and any browser tab\n"
+             "showing http://192.168.0.1, wait 10 seconds, then run this again. Nothing was sent.")
 
 
 def wait_for_internet(r, timeout=90):
