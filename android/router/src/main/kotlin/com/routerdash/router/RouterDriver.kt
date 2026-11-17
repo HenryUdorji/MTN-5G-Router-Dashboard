@@ -15,6 +15,12 @@ interface RouterDriver {
 
     /** Current signal. Logs in again by itself if the session expired. */
     suspend fun signal(): SignalSnapshot
+
+    /** Allow only these 4G bands (band numbers, e.g. 3, 7). Must not be empty. */
+    suspend fun setLteBands(bands: Collection<Int>)
+
+    /** Allow only these 5G bands ("78" or "n78"). Must not be empty. */
+    suspend fun setNrBands(bands: Collection<String>)
 }
 
 class RouterException(

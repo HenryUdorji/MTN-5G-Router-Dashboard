@@ -35,6 +35,7 @@ import com.routerdash.app.data.ThemeMode
 import com.routerdash.app.ui.components.AppIcons
 import com.routerdash.app.ui.nav.BottomBar
 import com.routerdash.app.ui.nav.Tab
+import com.routerdash.app.ui.screens.BandsScreen
 import com.routerdash.app.ui.screens.HomeScreen
 import com.routerdash.app.ui.screens.MoreScreen
 import com.routerdash.app.ui.screens.PlaceholderScreen
@@ -48,6 +49,7 @@ fun AppRoot(vm: DashboardViewModel, isDark: Boolean) {
     val connecting by vm.connecting.collectAsStateWithLifecycle()
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
     val probe by vm.probe.collectAsStateWithLifecycle()
+    val band by vm.band.collectAsStateWithLifecycle()
     val c = AppTheme.colors
     val toggleTheme = { vm.setThemeMode(if (isDark) ThemeMode.LIGHT else ThemeMode.DARK) }
 
@@ -70,6 +72,7 @@ fun AppRoot(vm: DashboardViewModel, isDark: Boolean) {
         }
         is DashState.Live -> MainScaffold(
             live = s,
+            bands = { BandsScreen(s, band, vm::applyBands, vm::backToAuto, vm::dismissBandResult) },
             isDark = isDark,
             themeMode = themeMode,
             onThemeMode = vm::setThemeMode,
@@ -81,6 +84,7 @@ fun AppRoot(vm: DashboardViewModel, isDark: Boolean) {
 @Composable
 private fun MainScaffold(
     live: DashState.Live,
+    bands: @Composable () -> Unit,
     isDark: Boolean,
     themeMode: ThemeMode,
     onThemeMode: (ThemeMode) -> Unit,
@@ -125,9 +129,7 @@ private fun MainScaffold(
             NavHost(nav, startDestination = Tab.HOME.route, modifier = Modifier.fillMaxSize()) {
                 composable(Tab.HOME.route) { HomeScreen(live, onTryBandLock = { go(Tab.BANDS) }) }
                 composable(Tab.SIGNAL.route) { SignalScreen(live) }
-                composable(Tab.BANDS.route) {
-                    PlaceholderScreen("Band locking", listOf("4G and 5G band lock", "Network mode", "Lock to this tower", "Band tester", "Back to auto + auto-undo"))
-                }
+                composable(Tab.BANDS.route) { bands() }
                 composable(Tab.DATA.route) {
                     PlaceholderScreen("Data & SMS", listOf("Usage per day", "Bundle size and low-data alert", "Balance check", "SMS inbox"))
                 }

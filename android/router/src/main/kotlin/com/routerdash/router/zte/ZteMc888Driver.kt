@@ -78,6 +78,37 @@ class ZteMc888Driver internal constructor(
         ZteParser.parseSignal(raw, clock())
     }
 
+    override suspend fun setLteBands(bands: Collection<Int>) = lock.withLock {
+        command(
+            "BAND_SELECT",
+            mapOf(
+                "is_gw_band" to "0", "gw_band_mask" to "0",
+                "is_lte_band" to "1", "lte_band_mask" to ZteParser.encodeLteMask(bands),
+            ),
+        )
+    }
+
+    override suspend fun setNrBands(bands: Collection<String>) = lock.withLock {
+        command("WAN_PERFORM_NR5G_BAND_LOCK", mapOf("nr5g_band_mask" to ZteParser.encodeNrBands(bands)))
+    }
+
+    /**
+     * Sends a settings change with the AD token, the way the router's own page does.
+     * Format confirmed on firmware B05 by tools/bandlock_test.py (both band commands: "success").
+     */
+    private suspend fun command(goformId: String, params: Map<String, String>) {
+        if (get(listOf("loginfo")).str("loginfo") != "ok") {
+            doLogin(password ?: throw RouterException(Kind.NOT_LOGGED_IN, "Not logged in"))
+        }
+        val v = get(listOf("wa_inner_version", "cr_version", "RD"))
+        val ad = ZteAuth.adToken(v.str("wa_inner_version").orEmpty(), v.str("cr_version").orEmpty(), v.str("RD").orEmpty())
+        val res = post(mapOf("isTest" to "false", "goformId" to goformId, "AD" to ad) + params)
+        val result = res.str("result")
+        if (result != "success" && result != "0") {
+            throw RouterException(Kind.PROTOCOL, "The router refused the change ($goformId: $result)")
+        }
+    }
+
     private suspend fun doLogin(password: String) {
         val pre = get(listOf("LD", "login_lock_time", "psw_fail_num_str"))
         val lockTime = pre.str("login_lock_time")?.toIntOrNull() ?: -1
@@ -137,6 +168,12 @@ class ZteMc888Driver internal constructor(
         } catch (e: Exception) {
             throw RouterException(Kind.PROTOCOL, "Unexpected reply: ${body.take(120)}", e)
         }
+    }
+
+    companion object {
+        /** Bands the MC888D allows when set to auto (read from the router: lte_band_lock / nr5g_band_lock). */
+        val SUPPORTED_LTE_BANDS = listOf(1, 3, 7, 8, 20, 28, 38, 40, 41, 42)
+        val SUPPORTED_NR_BANDS = listOf("1", "3", "7", "8", "20", "28", "38", "41", "77", "78")
     }
 
     /** Keeps the "stok" session cookie in memory for this driver's lifetime. */

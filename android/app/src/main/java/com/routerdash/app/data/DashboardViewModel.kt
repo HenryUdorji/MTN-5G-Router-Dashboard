@@ -42,6 +42,16 @@ sealed interface RouterProbe {
     data class NotFound(val host: String, val message: String) : RouterProbe
 }
 
+/** Progress of a band-lock change, shown at the top of the Bands screen. */
+sealed interface BandAction {
+    data object Idle : BandAction
+    data object Applying : BandAction
+    data class WaitingForInternet(val seconds: Int, val undoAt: Int?) : BandAction
+    data class Done(val message: String, val before: SignalSnapshot?) : BandAction
+    data class Undone(val message: String) : BandAction
+    data class Failed(val message: String) : BandAction
+}
+
 sealed interface DashState {
     data object Loading : DashState
     data class NeedsSetup(val host: String, val error: String?) : DashState
@@ -88,6 +98,82 @@ class DashboardViewModel(private val settings: SettingsStore) : ViewModel() {
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashState.Loading)
 
+    // ---- band locking ----
+
+    /** The driver the poller is using, so changes share its session. */
+    private var activeDriver: ZteMc888Driver? = null
+    private var latest: SignalSnapshot? = null
+
+    private val _band = MutableStateFlow<BandAction>(BandAction.Idle)
+    val band: StateFlow<BandAction> = _band.asStateFlow()
+
+    fun dismissBandResult() {
+        if (_band.value !is BandAction.Applying && _band.value !is BandAction.WaitingForInternet) {
+            _band.value = BandAction.Idle
+        }
+    }
+
+    fun backToAuto() = applyBands(
+        ZteMc888Driver.SUPPORTED_LTE_BANDS.toSet(), ZteMc888Driver.SUPPORTED_NR_BANDS.toSet(), autoUndo = false,
+    )
+
+    /**
+     * Sends the band lock, then waits for the internet to come back. With [autoUndo], if it isn't
+     * back within [UNDO_AFTER_S] seconds, the previous bands are restored. The wait asks the router
+     * directly, so it keeps working if the user leaves the app.
+     */
+    fun applyBands(lte: Set<Int>, nr: Set<String>, autoUndo: Boolean) {
+        val d = activeDriver ?: run { _band.value = BandAction.Failed("Not connected to the router"); return }
+        if (_band.value is BandAction.Applying || _band.value is BandAction.WaitingForInternet) return
+        val before = latest
+        val prevLte = before?.lteBandsAllowed?.toSet().takeUnless { it.isNullOrEmpty() }
+            ?: ZteMc888Driver.SUPPORTED_LTE_BANDS.toSet()
+        val prevNr = before?.nrBandsAllowed?.toSet().takeUnless { it.isNullOrEmpty() }
+            ?: ZteMc888Driver.SUPPORTED_NR_BANDS.toSet()
+        val nrClean = nr.map { it.removePrefix("n") }.toSet()
+
+        viewModelScope.launch {
+            _band.value = BandAction.Applying
+            try {
+                if (lte != prevLte) d.setLteBands(lte)
+                if (nrClean != prevNr) d.setNrBands(nrClean)
+            } catch (e: RouterException) {
+                _band.value = BandAction.Failed(e.message ?: "The router refused the change")
+                return@launch
+            } catch (e: IllegalArgumentException) {
+                _band.value = BandAction.Failed(e.message ?: "Invalid band choice")
+                return@launch
+            }
+
+            val start = System.currentTimeMillis()
+            delay(8_000) // give the router time to drop and re-register before checking
+            while (true) {
+                val secs = ((System.currentTimeMillis() - start) / 1000).toInt()
+                val connected = try { d.signal().connected } catch (e: RouterException) { false }
+                if (connected) {
+                    _band.value = BandAction.Done("Done. Internet is back after $secs s.", before)
+                    return@launch
+                }
+                if (secs >= UNDO_AFTER_S) {
+                    if (autoUndo) {
+                        try {
+                            d.setLteBands(prevLte)
+                            d.setNrBands(prevNr)
+                            _band.value = BandAction.Undone("No internet after ${UNDO_AFTER_S / 60} minutes, so the previous bands were put back.")
+                        } catch (e: RouterException) {
+                            _band.value = BandAction.Failed("No internet, and undoing failed: ${e.message}. Tap Back to auto.")
+                        }
+                    } else {
+                        _band.value = BandAction.Done("Applied, but the internet isn't back yet. Tap Back to auto if it stays down.", before)
+                    }
+                    return@launch
+                }
+                _band.value = BandAction.WaitingForInternet(secs, if (autoUndo) UNDO_AFTER_S else null)
+                delay(3_000)
+            }
+        }
+    }
+
     val themeMode: StateFlow<ThemeMode> = settings.themeMode
         .stateIn(viewModelScope, SharingStarted.Eagerly, ThemeMode.SYSTEM)
 
@@ -123,6 +209,7 @@ class DashboardViewModel(private val settings: SettingsStore) : ViewModel() {
 
     private fun poll(host: String, password: String): Flow<DashState> = flow {
         val driver = ZteMc888Driver("http://$host")
+        activeDriver = driver
         val history = ArrayDeque<SignalPoint>()
         var last: SignalSnapshot? = null
         var loggedIn = false
@@ -135,6 +222,7 @@ class DashboardViewModel(private val settings: SettingsStore) : ViewModel() {
                 }
                 val snap = driver.signal()
                 last = snap
+                latest = snap
                 history.addLast(SignalPoint.of(snap))
                 while (history.size > HISTORY_POINTS) history.removeFirst()
                 emit(DashState.Live(host, snap, history.toList(), null))
@@ -161,5 +249,6 @@ class DashboardViewModel(private val settings: SettingsStore) : ViewModel() {
     companion object {
         const val POLL_MS = 3_000L
         const val HISTORY_POINTS = 1_200 // one hour at 3 s
+        const val UNDO_AFTER_S = 120
     }
 }

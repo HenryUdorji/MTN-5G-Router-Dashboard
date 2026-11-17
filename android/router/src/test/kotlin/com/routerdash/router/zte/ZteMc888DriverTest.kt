@@ -20,6 +20,7 @@ class ZteMc888DriverTest {
     private var loggedIn = false
     private var loginPosts = 0
     private var lastReferer: String? = null
+    private val commands = mutableListOf<String>()
 
     private fun start(correctPassword: String = "secret") {
         server.dispatcher = object : Dispatcher() {
@@ -27,6 +28,16 @@ class ZteMc888DriverTest {
                 lastReferer = request.getHeader("Referer")
                 val path = request.requestUrl!!
                 return when {
+                    request.method == "POST" && !request.body.peek().readUtf8().contains("goformId=LOGIN") -> {
+                        val form = request.body.readUtf8()
+                        commands += form
+                        val ad = ZteAuth.adToken("BD_MTNNGMC888V1.0.0B05", "", ld)
+                        MockResponse().setBody(if (loggedIn && form.contains("AD=$ad")) """{"result":"success"}""" else """{"result":"failure"}""")
+                    }
+                    path.queryParameter("cmd") == "wa_inner_version,cr_version,RD" ->
+                        MockResponse().setBody("""{"wa_inner_version":"BD_MTNNGMC888V1.0.0B05","cr_version":"","RD":"$ld"}""")
+                    path.queryParameter("cmd") == "loginfo" ->
+                        MockResponse().setBody(if (loggedIn) """{"loginfo":"ok"}""" else """{"loginfo":""}""")
                     request.method == "POST" -> {
                         loginPosts++
                         val form = request.body.readUtf8()
@@ -99,6 +110,28 @@ class ZteMc888DriverTest {
             assertEquals(RouterException.Kind.NOT_LOGGED_IN, e.kind)
         }
         assertEquals(1, loginPosts)
+    }
+
+    @Test fun `band lock sends the confirmed command format with the uppercase token`() = runTest {
+        start()
+        val d = driver()
+        d.login("secret")
+        d.setLteBands(listOf(7, 3))
+        d.setNrBands(listOf("n78"))
+        assertTrue(commands[0].contains("goformId=BAND_SELECT"))
+        assertTrue(commands[0].contains("is_lte_band=1"))
+        assertTrue(commands[0].contains("lte_band_mask=0x44"))
+        assertTrue(commands[1].contains("goformId=WAN_PERFORM_NR5G_BAND_LOCK"))
+        assertTrue(commands[1].contains("nr5g_band_mask=78"))
+    }
+
+    @Test fun `band lock signs in again if the session expired`() = runTest {
+        start()
+        val d = driver()
+        d.login("secret")
+        loggedIn = false // session lost: driver signs in again first, so this still works
+        d.setLteBands(listOf(3))
+        assertEquals(2, loginPosts)
     }
 
     @Test fun `unreachable router gives a clear error`() = runTest {

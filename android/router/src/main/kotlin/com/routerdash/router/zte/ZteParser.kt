@@ -76,6 +76,25 @@ object ZteParser {
         return (0 until 64).filter { (m shr it) and 1uL == 1uL }.map { it + 1 }
     }
 
+    /** [1, 3, 7] -> "0x45": the inverse of [decodeLteMask], in the same format the router reports. */
+    fun encodeLteMask(bands: Collection<Int>): String {
+        require(bands.isNotEmpty()) { "At least one 4G band is needed" }
+        val mask = bands.fold(0uL) { m, b ->
+            require(b in 1..64) { "Unsupported 4G band $b" }
+            m or (1uL shl (b - 1))
+        }
+        return "0x" + mask.toString(16)
+    }
+
+    /** ["n78", "3"] -> "3,78" (numbers only, ascending), the format the router reports. */
+    fun encodeNrBands(bands: Collection<String>): String {
+        val nums = bands.map { it.trim().removePrefix("n").removePrefix("N") }
+            .map { requireNotNull(it.toIntOrNull()) { "Unsupported 5G band $it" } }
+            .distinct().sorted()
+        require(nums.isNotEmpty()) { "At least one 5G band is needed" }
+        return nums.joinToString(",")
+    }
+
     /** "1,211,1,3,1650,20.0;2,211,1,7,2852,20.0" -> carriers (index, pci, state, band, earfcn, MHz). */
     fun parseCarriers(info: String?): List<Carrier> =
         info.orEmpty().split(";").mapNotNull { part ->
