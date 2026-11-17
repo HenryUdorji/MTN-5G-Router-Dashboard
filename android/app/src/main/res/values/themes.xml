@@ -1,0 +1,7 @@
+<resources>
+    <!-- Window background before Compose draws, so the app doesn't flash white. -->
+    <style name="Theme.RouterDash" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_bg</item>
+    </style>
+    <color name="window_bg">#F4F5F7</color>
+</resources>

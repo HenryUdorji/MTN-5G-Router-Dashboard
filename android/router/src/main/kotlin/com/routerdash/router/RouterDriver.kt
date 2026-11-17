@@ -1,0 +1,34 @@
+package com.routerdash.router
+
+/**
+ * What the app needs from a router. Each supported model implements this;
+ * the screens only ever talk to this interface.
+ */
+interface RouterDriver {
+    /** Log in with the admin password. Throws [RouterException]. */
+    suspend fun login(password: String)
+
+    suspend fun info(): RouterInfo
+
+    /** Current signal. Logs in again by itself if the session expired. */
+    suspend fun signal(): SignalSnapshot
+}
+
+class RouterException(
+    val kind: Kind,
+    message: String,
+    cause: Throwable? = null,
+) : Exception(message, cause) {
+    enum class Kind {
+        /** Not on the router's network, wrong address, or router off. */
+        UNREACHABLE,
+        /** Router rejected the password. Don't retry automatically: it locks after a few tries. */
+        BAD_PASSWORD,
+        /** Router has temporarily locked the admin login. */
+        LOCKED,
+        /** No password stored yet. */
+        NOT_LOGGED_IN,
+        /** The router answered with something we didn't expect. */
+        PROTOCOL,
+    }
+}
