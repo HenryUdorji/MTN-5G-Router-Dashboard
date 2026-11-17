@@ -1,4 +1,5 @@
 probe_output.json
+bandlock_test_output.json
 __pycache__/
 *.pyc
 .DS_Store
