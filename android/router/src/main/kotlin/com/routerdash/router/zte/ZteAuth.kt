@@ -14,7 +14,6 @@ import java.util.Base64
  */
 object ZteAuth {
     fun sha256Hex(s: String): String = hex(MessageDigest.getInstance("SHA-256").digest(s.toByteArray()))
-    fun md5Hex(s: String): String = hex(MessageDigest.getInstance("MD5").digest(s.toByteArray()))
 
     fun loginPassword(password: String, ld: String?): String =
         if (ld.isNullOrEmpty()) {
@@ -24,15 +23,15 @@ object ZteAuth {
         }
 
     /**
-     * The "AD" token that settings changes need: hash(hash(wa_inner_version + cr_version) + RD).
-     * SHA-256 confirmed on firmware B05 (a test write returned "success"); MD5 kept for older firmware.
+     * The "AD" token every settings change needs (except LOGIN and SET_WEB_LANGUAGE):
+     *   AD = SHA256( SHA256(wa_inner_version + cr_version) + RD ), uppercase hex.
+     * Taken from the router's own page (js/util.js: cookWithRequest = SHA256; the inputs
+     * come from js/language.js). RD is a one-time value fetched just before each change.
      */
-    fun adToken(waInnerVersion: String, crVersion: String, rd: String, algorithm: AdAlgorithm): String {
-        val h: (String) -> String = if (algorithm == AdAlgorithm.SHA256) ::sha256Hex else ::md5Hex
+    fun adToken(waInnerVersion: String, crVersion: String, rd: String): String {
+        val h = { x: String -> sha256Hex(x).uppercase() }
         return h(h(waInnerVersion + crVersion) + rd)
     }
-
-    enum class AdAlgorithm { SHA256, MD5 }
 
     private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
 }

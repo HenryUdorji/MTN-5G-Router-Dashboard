@@ -5,7 +5,7 @@ Client for the ZTE MC888 / MC888D web API (MTN Nigeria firmware).
 Confirmed on firmware BD_MTNNGMC888V1.0.0B05 / WEB_MTNNGMC888DV1.0.0B04:
   - login: password = SHA256(SHA256(pw).upper() + LD).upper(), goformId=LOGIN
   - session cookie: stok
-  - cr_version is empty, so the write token is hash(hash(wa_inner_version) + RD)
+  - write token AD = SHA256(SHA256(wa_inner_version + cr_version) + RD), uppercase hex
 
 Command-line use:
   python3 zte.py signal        print parsed signal once
@@ -61,7 +61,6 @@ class Router:
             "User-Agent": "Mozilla/5.0",
         }
         self.lock = threading.Lock()
-        self.ad_hash = None  # "sha256" or "md5", learned on first successful write
 
     # ---- transport ----
     def _open(self, req):
@@ -118,25 +117,35 @@ class Router:
         return parse_signal(self.get(SIGNAL_FIELDS))
 
     # ---- writes ----
-    def _ad(self, algo):
+    def _ad(self):
+        """Write token, as the router's own page computes it (js/util.js: cookWithRequest = SHA256,
+        uppercase hex): AD = SHA256(SHA256(wa_inner_version + cr_version) + RD)."""
         v = self._get(["wa_inner_version", "cr_version", "RD"])
-        h = _sha256 if algo == "sha256" else _md5
+        h = lambda x: _sha256(x).upper()
         return h(h(v.get("wa_inner_version", "") + v.get("cr_version", "")) + v.get("RD", ""))
 
     def set(self, goform_id, **params):
-        """Send a write command. Tries sha256 then md5 for AD until one works."""
+        """Send a write command with the AD token."""
         with self.lock:
             self.ensure_login()
-            algos = [self.ad_hash] if self.ad_hash else ["sha256", "md5"]
-            last = None
-            for algo in algos:
-                data = {"isTest": "false", "goformId": goform_id, "AD": self._ad(algo)}
-                data.update(params)
-                last = self._post(data)
-                if str(last.get("result")).lower() in ("success", "0"):
-                    self.ad_hash = algo
-                    return last
-            raise RouterError(f"{goform_id} rejected: {last}")
+            data = {"isTest": "false", "goformId": goform_id, "AD": self._ad()}
+            data.update(params)
+            res = self._post(data)
+            if str(res.get("result")).lower() in ("success", "0"):
+                return res
+            raise RouterError(f"{goform_id} rejected: {res}")
+
+    def developer_login(self):
+        """Unlock the router's Developer options (same password as the admin login)."""
+        with self.lock:
+            self.ensure_login()
+            ld = self._get(["LD"]).get("LD", "")
+            pw = _sha256(_sha256(self.password).upper() + ld).upper()
+            res = self._post({"isTest": "false", "goformId": "DEVELOPER_OPTION_LOGIN",
+                              "password": pw, "AD": self._ad()})
+            if str(res.get("result")) != "0":
+                raise RouterError(f"developer login failed: {res}")
+            return res
 
 
 # ---- parsing ----
@@ -223,6 +232,6 @@ if __name__ == "__main__":
     elif cmd == "test-write":
         lang = r.get(["Language"]).get("Language") or "en"
         res = r.set("SET_WEB_LANGUAGE", Language=lang)
-        print(f"Write OK using AD hash '{r.ad_hash}': {res}")
+        print(f"Write OK: {res}")
     else:
         sys.exit(__doc__)

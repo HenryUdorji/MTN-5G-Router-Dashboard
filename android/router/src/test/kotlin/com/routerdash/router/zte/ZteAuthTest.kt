@@ -18,12 +18,11 @@ class ZteAuthTest {
         assertEquals("YWRtaW4=", ZteAuth.loginPassword("admin", ""))
     }
 
-    @Test fun `AD token in both candidate hashes`() {
-        val wa = "BD_MTNNGMC888V1.0.0B05"
+    @Test fun `AD token is uppercase SHA-256 like the router's own page`() {
+        // Same formula as js/util.js + js/service.js on firmware B05; computed independently in Python.
         assertEquals(
-            "63327759f3a691b69c1e93a54537b9fc94798820837f106f8fa5057af923ab6b",
-            ZteAuth.adToken(wa, "", ld, ZteAuth.AdAlgorithm.SHA256),
+            "68F700451250E95642AF3035BA34E20EBB8FE58C10A88C2C68ABB76BB18E9317",
+            ZteAuth.adToken("BD_MTNNGMC888V1.0.0B05", "", ld),
         )
-        assertEquals("cd3131808be84143387c155c1108bc20", ZteAuth.adToken(wa, "", ld, ZteAuth.AdAlgorithm.MD5))
     }
 }

@@ -65,6 +65,16 @@ def step(r, out, name, goform_id, params, field, expected):
         ok = True
     except RouterError as e:
         res, ok = str(e), False
+        if not out.get("developer_login"):
+            # Band commands sit in the router's Developer options; unlock it and try once more.
+            print("Refused. Unlocking Developer options (same admin password) and retrying once...")
+            try:
+                out["developer_login"] = str(r.developer_login())
+                res = r.set(goform_id, **params)
+                ok = True
+            except RouterError as e2:
+                out.setdefault("developer_login", str(e2))
+                res = str(e2)
     print("Router answered:", res)
     secs, _ = wait_for_internet(r)
     print("Internet back after", f"{secs} s" if secs is not None else "more than 90 s (check the router)")
