@@ -3,3 +3,5 @@ bandlock_test_output.json
 __pycache__/
 *.pyc
 .DS_Store
+webui_scan_output.txt
+webui_js/
