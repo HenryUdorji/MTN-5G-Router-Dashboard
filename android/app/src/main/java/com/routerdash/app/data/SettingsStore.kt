@@ -18,16 +18,27 @@ import javax.crypto.spec.GCMParameterSpec
 
 data class RouterSettings(val host: String, val password: String?)
 
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
 /** Router address and admin password. The password is encrypted with a key kept in the Android Keystore. */
 class SettingsStore(private val context: Context) {
     private val hostKey = stringPreferencesKey("host")
     private val passwordKey = stringPreferencesKey("password_enc")
+    private val themeKey = stringPreferencesKey("theme")
 
     val settings: Flow<RouterSettings> = context.dataStore.data
         .map { p -> RouterSettings(p[hostKey] ?: DEFAULT_HOST, p[passwordKey]?.let(PasswordCipher::decrypt)) }
         .distinctUntilChanged()
+
+    val themeMode: Flow<ThemeMode> = context.dataStore.data
+        .map { p -> p[themeKey]?.let { name -> ThemeMode.entries.firstOrNull { it.name == name } } ?: ThemeMode.SYSTEM }
+        .distinctUntilChanged()
+
+    suspend fun setThemeMode(mode: ThemeMode) {
+        context.dataStore.edit { it[themeKey] = mode.name }
+    }
 
     suspend fun save(host: String, password: String) {
         val encrypted = PasswordCipher.encrypt(password)

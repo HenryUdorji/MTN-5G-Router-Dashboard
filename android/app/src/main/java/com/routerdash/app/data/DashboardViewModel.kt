@@ -19,7 +19,20 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-data class SinrPoint(val timeMs: Long, val lte: Double?, val nr: Double?)
+/** One poll's worth of the values the charts draw. */
+data class SignalPoint(
+    val timeMs: Long,
+    val lteRsrp: Double?, val lteRsrq: Double?, val lteSinr: Double?,
+    val nrRsrp: Double?, val nrRsrq: Double?, val nrSinr: Double?,
+) {
+    companion object {
+        fun of(s: SignalSnapshot) = SignalPoint(
+            s.timestampMs,
+            s.lte?.rsrp, s.lte?.rsrq, s.lte?.sinr,
+            s.nr?.rsrp, s.nr?.rsrq, s.nr?.sinr,
+        )
+    }
+}
 
 sealed interface DashState {
     data object Loading : DashState
@@ -27,7 +40,7 @@ sealed interface DashState {
     data class Live(
         val host: String,
         val snapshot: SignalSnapshot?,
-        val history: List<SinrPoint>,
+        val history: List<SignalPoint>,
         /** Set when the latest poll failed; the last good snapshot stays on screen. */
         val problem: String?,
     ) : DashState
@@ -51,6 +64,21 @@ class DashboardViewModel(private val settings: SettingsStore) : ViewModel() {
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashState.Loading)
 
+    val themeMode: StateFlow<ThemeMode> = settings.themeMode
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ThemeMode.SYSTEM)
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { settings.setThemeMode(mode) }
+    }
+
+    /** Forget the saved password and go back to the login screen. */
+    fun signOut() {
+        viewModelScope.launch {
+            setupError.value = null
+            settings.clearPassword()
+        }
+    }
+
     /** Called from the setup screen. Only saves the password once the router accepts it. */
     fun connect(host: String, password: String) {
         val cleanHost = host.trim().removePrefix("http://").removePrefix("https://").trimEnd('/')
@@ -70,7 +98,7 @@ class DashboardViewModel(private val settings: SettingsStore) : ViewModel() {
 
     private fun poll(host: String, password: String): Flow<DashState> = flow {
         val driver = ZteMc888Driver("http://$host")
-        val history = ArrayDeque<SinrPoint>()
+        val history = ArrayDeque<SignalPoint>()
         var last: SignalSnapshot? = null
         var loggedIn = false
         emit(DashState.Live(host, null, emptyList(), null))
@@ -82,7 +110,7 @@ class DashboardViewModel(private val settings: SettingsStore) : ViewModel() {
                 }
                 val snap = driver.signal()
                 last = snap
-                history.addLast(SinrPoint(snap.timestampMs, snap.lte?.sinr, snap.nr?.sinr))
+                history.addLast(SignalPoint.of(snap))
                 while (history.size > HISTORY_POINTS) history.removeFirst()
                 emit(DashState.Live(host, snap, history.toList(), null))
             } catch (e: RouterException) {

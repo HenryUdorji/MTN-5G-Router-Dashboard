@@ -36,7 +36,8 @@ import com.routerdash.app.ui.components.LegendDot
 import com.routerdash.app.ui.components.MetricMeter
 import com.routerdash.app.ui.components.Overline
 import com.routerdash.app.ui.components.QualityBadge
-import com.routerdash.app.ui.components.SinrChart
+import com.routerdash.app.ui.components.SinrHomeScale
+import com.routerdash.app.ui.components.TwoLineChart
 import com.routerdash.app.ui.components.StatusPill
 import com.routerdash.app.ui.components.fmt
 import com.routerdash.app.ui.theme.AppTheme
@@ -156,8 +157,8 @@ private fun NoisyAnchorTip(snap: SignalSnapshot, onTryBandLock: () -> Unit) {
 @Composable
 private fun ChartCard(state: DashState.Live) {
     val c = AppTheme.colors
-    val lte = state.history.map { it.lte }
-    val nr = state.history.map { it.nr }
+    val lte = state.history.map { it.lteSinr }
+    val nr = state.history.map { it.nrSinr }
     val minutes = state.history.let { h -> if (h.size < 2) 0 else ((h.last().timeMs - h.first().timeMs) / 60_000).toInt() }
     AppCard {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -168,8 +169,8 @@ private fun ChartCard(state: DashState.Live) {
             LegendDot(c.series4g, "4G ${fmt(lte.lastOrNull())}")
             LegendDot(c.series5g, "5G ${fmt(nr.lastOrNull())}")
         }
-        SinrChart(
-            lte, nr,
+        TwoLineChart(
+            lte, nr, SinrHomeScale,
             description = "SINR chart. 4G now ${fmt(lte.lastOrNull())} dB, 5G now ${fmt(nr.lastOrNull())} dB. Shaded area is poor quality, below 0 dB.",
         )
         Text("Shaded: poor (below 0 dB) · higher is better", color = c.textMuted, fontSize = 11.sp)
