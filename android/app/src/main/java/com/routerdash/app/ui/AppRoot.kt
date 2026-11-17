@@ -16,6 +16,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,7 +38,7 @@ import com.routerdash.app.ui.nav.Tab
 import com.routerdash.app.ui.screens.HomeScreen
 import com.routerdash.app.ui.screens.MoreScreen
 import com.routerdash.app.ui.screens.PlaceholderScreen
-import com.routerdash.app.ui.screens.SetupScreen
+import com.routerdash.app.ui.screens.LoginScreen
 import com.routerdash.app.ui.screens.SignalScreen
 import com.routerdash.app.ui.theme.AppTheme
 
@@ -46,13 +47,27 @@ fun AppRoot(vm: DashboardViewModel, isDark: Boolean) {
     val state by vm.state.collectAsStateWithLifecycle()
     val connecting by vm.connecting.collectAsStateWithLifecycle()
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
+    val probe by vm.probe.collectAsStateWithLifecycle()
     val c = AppTheme.colors
+    val toggleTheme = { vm.setThemeMode(if (isDark) ThemeMode.LIGHT else ThemeMode.DARK) }
 
     when (val s = state) {
         DashState.Loading -> Box(Modifier.fillMaxSize().background(c.ground), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
-        is DashState.NeedsSetup -> SetupScreen(s.host, s.error, connecting, vm::connect)
+        is DashState.NeedsSetup -> {
+            LaunchedEffect(s.host) { vm.probe(s.host) }
+            LoginScreen(
+                initialHost = s.host,
+                error = s.error,
+                connecting = connecting,
+                probe = probe,
+                isDark = isDark,
+                onProbe = vm::probe,
+                onConnect = vm::connect,
+                onToggleTheme = toggleTheme,
+            )
+        }
         is DashState.Live -> MainScaffold(
             live = s,
             isDark = isDark,

@@ -2,6 +2,7 @@ package com.routerdash.app.data
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.routerdash.router.PreLoginInfo
 import com.routerdash.router.RouterException
 import com.routerdash.router.RouterException.Kind
 import com.routerdash.router.SignalSnapshot
@@ -34,6 +35,13 @@ data class SignalPoint(
     }
 }
 
+/** Result of looking for the router before sign-in. */
+sealed interface RouterProbe {
+    data object Checking : RouterProbe
+    data class Found(val host: String, val info: PreLoginInfo) : RouterProbe
+    data class NotFound(val host: String, val message: String) : RouterProbe
+}
+
 sealed interface DashState {
     data object Loading : DashState
     data class NeedsSetup(val host: String, val error: String?) : DashState
@@ -56,6 +64,22 @@ class DashboardViewModel(private val settings: SettingsStore) : ViewModel() {
     private val setupError = MutableStateFlow<String?>(null)
     private val _connecting = MutableStateFlow(false)
     val connecting: StateFlow<Boolean> = _connecting.asStateFlow()
+
+    private val _probe = MutableStateFlow<RouterProbe>(RouterProbe.Checking)
+    val probe: StateFlow<RouterProbe> = _probe.asStateFlow()
+
+    /** Looks for the router at [host] without signing in (model, firmware, tries left). */
+    fun probe(host: String) {
+        val h = cleanHost(host)
+        viewModelScope.launch {
+            _probe.value = RouterProbe.Checking
+            _probe.value = try {
+                RouterProbe.Found(h, ZteMc888Driver("http://$h").preLogin())
+            } catch (e: RouterException) {
+                RouterProbe.NotFound(h, e.message ?: "Router not found")
+            }
+        }
+    }
 
     val state: StateFlow<DashState> = settings.settings
         .flatMapLatest { s ->
@@ -81,15 +105,16 @@ class DashboardViewModel(private val settings: SettingsStore) : ViewModel() {
 
     /** Called from the setup screen. Only saves the password once the router accepts it. */
     fun connect(host: String, password: String) {
-        val cleanHost = host.trim().removePrefix("http://").removePrefix("https://").trimEnd('/')
+        val target = cleanHost(host)
         viewModelScope.launch {
             _connecting.value = true
             setupError.value = null
             try {
-                ZteMc888Driver("http://$cleanHost").login(password)
-                settings.save(cleanHost, password)
+                ZteMc888Driver("http://$target").login(password)
+                settings.save(target, password)
             } catch (e: RouterException) {
                 setupError.value = e.message
+                probe(target) // refresh "tries left"
             } finally {
                 _connecting.value = false
             }
@@ -129,6 +154,9 @@ class DashboardViewModel(private val settings: SettingsStore) : ViewModel() {
             delay(POLL_MS)
         }
     }
+
+    private fun cleanHost(host: String) =
+        host.trim().removePrefix("http://").removePrefix("https://").trimEnd('/')
 
     companion object {
         const val POLL_MS = 3_000L

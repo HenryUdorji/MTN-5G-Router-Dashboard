@@ -252,6 +252,17 @@ fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit, mod
 }
 
 object AppIcons {
+    val SignalBars: ImageVector by lazy {
+        ImageVector.Builder("SignalBars", 24.dp, 24.dp, 24f, 24f).path(
+            stroke = SolidColor(Color.Black), strokeLineWidth = 2.2f, strokeLineCap = StrokeCap.Round,
+        ) {
+            moveTo(5f, 20f); verticalLineTo(17f)
+            moveTo(10f, 20f); verticalLineTo(13f)
+            moveTo(15f, 20f); verticalLineTo(9f)
+            moveTo(20f, 20f); verticalLineTo(4f)
+        }.build()
+    }
+
     val Sun: ImageVector by lazy {
         ImageVector.Builder("Sun", 24.dp, 24.dp, 24f, 24f).path(
             stroke = SolidColor(Color.Black), strokeLineWidth = 2f, strokeLineCap = StrokeCap.Round,
@@ -267,6 +278,38 @@ object AppIcons {
             moveTo(17.7f, 17.7f); lineTo(19.1f, 19.1f)
             moveTo(4.9f, 19.1f); lineTo(6.3f, 17.7f)
             moveTo(17.7f, 6.3f); lineTo(19.1f, 4.9f)
+        }.build()
+    }
+
+    val Eye: ImageVector by lazy {
+        ImageVector.Builder("Eye", 24.dp, 24.dp, 24f, 24f).path(
+            stroke = SolidColor(Color.Black), strokeLineWidth = 2f,
+            strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round,
+        ) {
+            moveTo(2f, 12f)
+            curveTo(4f, 8f, 7.6f, 5f, 12f, 5f)
+            curveTo(16.4f, 5f, 20f, 8f, 22f, 12f)
+            curveTo(20f, 16f, 16.4f, 19f, 12f, 19f)
+            curveTo(7.6f, 19f, 4f, 16f, 2f, 12f)
+            close()
+            moveTo(15f, 12f)
+            arcTo(3f, 3f, 0f, isMoreThanHalf = true, isPositiveArc = true, x1 = 9f, y1 = 12f)
+            arcTo(3f, 3f, 0f, isMoreThanHalf = true, isPositiveArc = true, x1 = 15f, y1 = 12f)
+        }.build()
+    }
+
+    val EyeOff: ImageVector by lazy {
+        ImageVector.Builder("EyeOff", 24.dp, 24.dp, 24f, 24f).path(
+            stroke = SolidColor(Color.Black), strokeLineWidth = 2f,
+            strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round,
+        ) {
+            moveTo(2f, 12f)
+            curveTo(4f, 8f, 7.6f, 5f, 12f, 5f)
+            curveTo(16.4f, 5f, 20f, 8f, 22f, 12f)
+            curveTo(20f, 16f, 16.4f, 19f, 12f, 19f)
+            curveTo(7.6f, 19f, 4f, 16f, 2f, 12f)
+            close()
+            moveTo(4f, 4f); lineTo(20f, 20f)
         }.build()
     }
 

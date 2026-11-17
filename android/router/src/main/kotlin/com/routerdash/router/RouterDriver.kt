@@ -5,6 +5,9 @@ package com.routerdash.router
  * the screens only ever talk to this interface.
  */
 interface RouterDriver {
+    /** Checks the router is there and reads what it shares without a password. */
+    suspend fun preLogin(): PreLoginInfo
+
     /** Log in with the admin password. Throws [RouterException]. */
     suspend fun login(password: String)
 

@@ -24,8 +24,8 @@ object ZteAuth {
         }
 
     /**
-     * The "AD" token that settings changes need. Which hash the firmware uses
-     * is not confirmed yet; settings changes will try SHA-256 first, then MD5.
+     * The "AD" token that settings changes need: hash(hash(wa_inner_version + cr_version) + RD).
+     * SHA-256 confirmed on firmware B05 (a test write returned "success"); MD5 kept for older firmware.
      */
     fun adToken(waInnerVersion: String, crVersion: String, rd: String, algorithm: AdAlgorithm): String {
         val h: (String) -> String = if (algorithm == AdAlgorithm.SHA256) ::sha256Hex else ::md5Hex

@@ -1,5 +1,6 @@
 package com.routerdash.router.zte
 
+import com.routerdash.router.PreLoginInfo
 import com.routerdash.router.RouterDriver
 import com.routerdash.router.RouterException
 import com.routerdash.router.RouterException.Kind
@@ -47,6 +48,15 @@ class ZteMc888Driver internal constructor(
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
+
+    override suspend fun preLogin(): PreLoginInfo = lock.withLock {
+        val j = get(listOf("model_name", "wa_inner_version", "psw_fail_num_str", "login_lock_time"))
+        PreLoginInfo(
+            model = j.str("model_name"),
+            firmware = j.str("wa_inner_version"),
+            attemptsLeft = j.str("psw_fail_num_str")?.toIntOrNull(),
+        )
+    }
 
     override suspend fun login(password: String) = lock.withLock {
         doLogin(password)

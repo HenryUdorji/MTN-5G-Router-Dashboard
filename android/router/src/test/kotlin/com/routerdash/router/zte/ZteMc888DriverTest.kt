@@ -36,6 +36,10 @@ class ZteMc888DriverTest {
                             MockResponse().setBody("""{"result":"0"}""").addHeader("Set-Cookie", "stok=abc; path=/")
                         } else MockResponse().setBody("""{"result":"3"}""")
                     }
+                    path.queryParameter("cmd")!!.startsWith("model_name") ->
+                        MockResponse().setBody(
+                            """{"model_name":"MC888","wa_inner_version":"BD_MTNNGMC888V1.0.0B05","psw_fail_num_str":"5","login_lock_time":"-1"}"""
+                        )
                     path.queryParameter("cmd")!!.startsWith("LD") ->
                         MockResponse().setBody("""{"LD":"$ld","login_lock_time":"-1","psw_fail_num_str":"5"}""")
                     else -> {
@@ -60,6 +64,15 @@ class ZteMc888DriverTest {
         assertEquals("n78", s.nr?.band)
         assertEquals(42L, s.timestampMs)
         assertTrue(lastReferer!!.endsWith("/index.html"))
+    }
+
+    @Test fun `reads model, firmware and tries left without a password`() = runTest {
+        start()
+        val info = driver().preLogin()
+        assertEquals("MC888", info.model)
+        assertEquals("BD_MTNNGMC888V1.0.0B05", info.firmware)
+        assertEquals(5, info.attemptsLeft)
+        assertEquals(0, loginPosts)
     }
 
     @Test fun `logs in again by itself when the session expires`() = runTest {

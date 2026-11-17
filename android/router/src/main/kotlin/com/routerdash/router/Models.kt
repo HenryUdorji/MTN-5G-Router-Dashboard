@@ -58,3 +58,11 @@ data class RouterInfo(
     val webVersion: String?,
     val hardwareVersion: String?,
 )
+
+/** What the router shares before signing in. */
+data class PreLoginInfo(
+    val model: String?,
+    val firmware: String?,
+    /** Wrong-password tries left before the router locks sign-in. */
+    val attemptsLeft: Int?,
+)
