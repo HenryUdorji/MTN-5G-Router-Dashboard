@@ -28,11 +28,14 @@ import java.util.concurrent.TimeUnit
  *
  * @param baseUrl e.g. "http://192.168.0.1"
  */
-class ZteMc888Driver(
+class ZteMc888Driver internal constructor(
     baseUrl: String,
-    private val clock: () -> Long = System::currentTimeMillis,
-    client: OkHttpClient? = null,
+    private val clock: () -> Long,
+    client: OkHttpClient?,
 ) : RouterDriver {
+
+    /** OkHttp stays an internal detail of this module, so the app never needs it on its classpath. */
+    constructor(baseUrl: String, clock: () -> Long = System::currentTimeMillis) : this(baseUrl, clock, null)
 
     private val base: HttpUrl = baseUrl.trimEnd('/').toHttpUrl()
     private val json = Json { ignoreUnknownKeys = true }
